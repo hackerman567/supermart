@@ -1,0 +1,31 @@
+{
+  "name": "supermart-network-app",
+  "version": "1.0.0",
+  "description": "SuperMart - Supermarket Billing & Inventory Management Enterprise Network System",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "server": "node backend/server.js",
+    "client": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "dev": "concurrently \"node backend/server.js\" \"npm --prefix frontend run dev\""
+  },
+  "keywords": [
+    "supermarket",
+    "billing",
+    "inventory",
+    "networking",
+    "cisco-packet-tracer",
+    "vite",
+    "framer-motion"
+  ],
+  "author": "SuperMart Project Team",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
