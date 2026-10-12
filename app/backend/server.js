@@ -19,16 +19,16 @@ initDatabase();
 // --- NETWORK TELEMETRY (Connects Web App to Cisco Packet Tracer Network Design) ---
 const NETWORK_CONFIG = {
     serverHostname: 'SRV-CENTRAL-01',
-    serverIp: '192.168.40.10',
-    subnetMask: '255.255.255.0',
-    gatewayIp: '192.168.40.1',
-    dnsServer: '192.168.40.10',
+    serverIp: '192.168.11.230',
+    subnetMask: '255.255.255.240',
+    gatewayIp: '192.168.11.225',
+    dnsServer: '192.168.11.230',
     vlan: 40,
-    vlanName: 'SERVER-FARM',
+    vlanName: 'SERVERS',
     ospfArea: '0 (Backbone Core)',
-    hsrpState: 'ACTIVE (R1 Primary / R2 Standby)',
+    hsrpState: 'ACTIVE on HQ-R2 for VLAN 40 (HQ-R1 standby)',
     vpnStatus: 'IPsec Tunnel UP (HQ <-> Branch 02)',
-    branchSubnet: '192.168.60.0/24'
+    branchSubnet: '192.168.20.0/24'
 };
 
 // Network status endpoint

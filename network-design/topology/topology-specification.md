@@ -1,73 +1,127 @@
-# SuperMart Enterprise Network — Topology & Hardware Specification
+# SuperMart — Packet Tracer Build Guide (Topology, Cabling, Addressing)
 
-## 1. Cisco Hardware Bill of Materials (BOM)
+Follow this page top to bottom to build `cisco-network/pkt-files/SuperMart.pkt` in Cisco Packet Tracer 9.0.1. The design rationale and diagrams are in the report (`documentation/report/23Z510-lab-project-report.md`, Section A).
 
-| Device Role | Device Label | Packet Tracer Model | Installed Modules / Cards | Subnet / VLAN |
-| :--- | :--- | :--- | :--- | :--- |
-| **HQ Primary Core Router** | `HQ-RTR-01-PRIMARY` | Cisco 2911 ISR | `HWIC-2T` (in Slot 0) | All HQ VLANs + WAN |
-| **HQ Secondary Router** | `HQ-RTR-02-SECONDARY` | Cisco 2911 ISR | None (Integrated GigE) | All HQ VLANs + Heartbeat |
-| **Branch Store Router** | `BRANCH-02-ROUTER` | Cisco 2911 ISR | `HWIC-2T` (in Slot 0) | VLAN 60 + WAN |
-| **HQ Core Multilayer Switch** | `HQ-CORE-SW-3560` | Cisco 3560-24PS | Built-in 24 FE + 2 GigE | 802.1Q Aggregation & STP Root |
-| **POS Counters Access Switch** | `POS-ACCESS-SW-2960` | Cisco 2960-24TT | Built-in 24 FE + 2 GigE | VLAN 10 (Access Ports Fa0/1-10) |
-| **Server Farm Access Switch** | `SERVERS-SW-2960` | Cisco 2960-24TT | Built-in 24 FE + 2 GigE | VLAN 40 (Access Ports Fa0/1-10) |
-| **Floor & Admin Access Switch**| `FLOOR-SW-2960` | Cisco 2960-24TT | Built-in 24 FE + 2 GigE | VLAN 20, 30, 50 |
-| **Branch Store Access Switch** | `BRANCH-SW-2960` | Cisco 2960-24TT | Built-in 24 FE + 2 GigE | VLAN 60 |
-| **Store Wi-Fi Access Point** | `AP-STORE-WIFI` | AccessPoint-PT | Standard Ethernet | VLAN 50 (SSID: `SuperMart-Guest`) |
-| **Central Enterprise Server** | `SRV-CENTRAL-01` | Server-PT | FastEthernet (Static IP) | VLAN 40 (`192.168.40.10`) |
-| **Cashier Terminal 01** | `POS-COUNTER-01` | PC-PT | FastEthernet (DHCP) | VLAN 10 (`192.168.10.10`) |
-| **Cashier Terminal 02** | `POS-COUNTER-02` | PC-PT | FastEthernet (DHCP) | VLAN 10 (`192.168.10.11`) |
-| **Receipt Printer 01** | `POS-PRINTER-01` | Printer-PT | FastEthernet (DHCP) | VLAN 10 (`192.168.10.12`) |
-| **Inventory Workstation 01** | `INV-SCANNER-01` | PC-PT | FastEthernet (DHCP) | VLAN 20 (`192.168.20.10`) |
-| **Store Director Admin PC** | `ADMIN-PC-01` | PC-PT | FastEthernet (DHCP) | VLAN 30 (`192.168.30.10`) |
-| **Branch Cashier Terminal** | `BRANCH-POS-01` | PC-PT | FastEthernet (DHCP) | VLAN 60 (`192.168.60.10`) |
+## 1. Devices
 
----
+| # | Hostname | PT device | Modules to add (power off → drag → power on) | Config file |
+|---|---|---|---|---|
+| 1 | HQ-R1 | 2911 | HWIC-2T in slot 0 | `hq-router-01-primary.ios.cfg` |
+| 2 | HQ-R2 | 2911 | HWIC-2T in slot 0 **and** HWIC-2T in slot 1 | `hq-router-02-secondary.ios.cfg` |
+| 3 | BR-R | 2911 | HWIC-2T in slot 0 | `branch-router.ios.cfg` |
+| 4 | WH-R1 | 2911 | HWIC-2T in slot 0 | `warehouse-router-01.ios.cfg` |
+| 5 | WH-R2 | 2911 | HWIC-2T in slot 0 | `warehouse-router-02.ios.cfg` |
+| 6 | ISP-R | 2911 | — | `isp-router.ios.cfg` |
+| 7 | HQ-ASA | ASA 5506-X | — | `hq-asa-5506.asa.cfg` |
+| 8 | HQ-CORE-SW | 3560-24PS | — | `hq-core-switch-3560.ios.cfg` |
+| 9 | POS-SW | 2960-24TT | — | `pos-access-switch-2960.ios.cfg` |
+| 10 | SRV-SW | 2960-24TT | — | `servers-access-switch-2960.ios.cfg` |
+| 11 | FLOOR-SW | 2960-24TT | — | `floor-access-switch-2960.ios.cfg` |
+| 12 | BR-SW | 2960-24TT | — | `branch-access-switch-2960.ios.cfg` |
+| 13 | AP-STORE | AccessPoint-PT | — | GUI (services guide §6) |
+| 14 | SRV-CENTRAL-01 | Server-PT | — | GUI (services guide §1–5) |
+| 15 | INTERNET-SRV | Server-PT | — | GUI (services guide §7) |
+| 16 | NMS-PC | PC-PT | — | static IP |
+| 17–18 | POS-PC-01, POS-PC-02 | PC-PT | — | DHCP |
+| 19 | POS-PRINTER | Printer-PT | — | static IP |
+| 20 | INV-PC-01 | PC-PT | — | DHCP |
+| 21 | ADMIN-PC-01 | PC-PT | — | DHCP |
+| 22 | WIFI-LAPTOP | Laptop-PT | replace NIC with **WPC300N** | DHCP (wireless) |
+| 23–24 | BR-POS-PC, BR-OFFICE-PC | PC-PT | — | DHCP |
+| 25–26 | WH1-PC, WH2-PC | PC-PT | — | DHCP |
 
-## 2. Complete Cabling & Port Allocation Matrix
+## 2. Cabling
 
-### A. WAN Point-to-Point Serial Connection
-| Source Device | Source Port | Destination Device | Destination Port | Cable Type | Clock Rate |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `HQ-RTR-01-PRIMARY` | `Serial0/0/0` (DCE) | `BRANCH-02-ROUTER` | `Serial0/0/0` (DTE) | Serial DCE Cable | 128000 bps |
+**Serial (Serial DCE cable: click the DCE end first, on the router listed under "DCE end")**
 
-### B. Router-to-Router Heartbeat Connection
-| Source Device | Source Port | Destination Device | Destination Port | Cable Type | Notes |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `HQ-RTR-01-PRIMARY` | `GigabitEthernet0/1` | `HQ-RTR-02-SECONDARY` | `GigabitEthernet0/1` | Copper Cross-Over | Subnet `172.16.1.0/30` |
+| DCE end | Port | DTE end | Port | Subnet |
+|---|---|---|---|---|
+| HQ-R1 | S0/0/0 | BR-R | S0/0/0 | 10.0.0.0/30 (primary WAN) |
+| HQ-R2 | S0/0/0 | BR-R | S0/0/1 | 10.0.0.4/30 (backup WAN) |
+| HQ-R2 | S0/0/1 | WH-R1 | S0/0/0 | 10.0.0.12/30 |
+| HQ-R2 | S0/1/0 | WH-R2 | S0/0/0 | 10.0.0.16/30 |
+| WH-R1 | S0/0/1 | WH-R2 | S0/0/1 | 10.0.0.20/30 |
 
-### C. Router-to-Core-Switch Trunk Links (802.1Q)
-| Source Device | Source Port | Destination Device | Destination Port | Cable Type | Notes |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `HQ-RTR-01-PRIMARY` | `GigabitEthernet0/0` | `HQ-CORE-SW-3560` | `GigabitEthernet0/1` | Copper Straight-Through | 802.1Q Dot1q Trunk |
-| `HQ-RTR-02-SECONDARY`| `GigabitEthernet0/0` | `HQ-CORE-SW-3560` | `GigabitEthernet0/2` | Copper Straight-Through | 802.1Q Dot1q Trunk |
+**Copper cross-over (like devices / router↔PC)**
 
-### D. Core-Switch to Access Switches Trunk Links
-| Source Device | Source Port | Destination Device | Destination Port | Cable Type | Trunk Allowed VLANs |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `HQ-CORE-SW-3560` | `FastEthernet0/1` | `POS-ACCESS-SW-2960` | `GigabitEthernet0/1` | Copper Straight-Through | VLAN 10, 99 |
-| `HQ-CORE-SW-3560` | `FastEthernet0/2` | `SERVERS-SW-2960` | `GigabitEthernet0/1` | Copper Straight-Through | VLAN 40, 99 |
-| `HQ-CORE-SW-3560` | `FastEthernet0/3` | `FLOOR-SW-2960` | `GigabitEthernet0/1` | Copper Straight-Through | VLAN 20, 30, 50, 99 |
+| From | Port | To | Port | Notes |
+|---|---|---|---|---|
+| HQ-R1 | G0/1 | HQ-R2 | G0/1 | 10.0.0.8/30 |
+| WH-R1 | G0/0 | WH1-PC | Fa0 | |
+| WH-R2 | G0/0 | WH2-PC | Fa0 | |
+| ISP-R | G0/1 | INTERNET-SRV | Fa0 | |
 
-### E. Access Switch to End Workstations (Access Ports)
-| Switch Device | Switch Port | End Device | Mode | VLAN Assignment |
-| :--- | :--- | :--- | :--- | :--- |
-| `POS-ACCESS-SW-2960` | `FastEthernet0/1` | `POS-COUNTER-01` | Access | VLAN 10 (Sticky Port Security) |
-| `POS-ACCESS-SW-2960` | `FastEthernet0/2` | `POS-COUNTER-02` | Access | VLAN 10 (Sticky Port Security) |
-| `POS-ACCESS-SW-2960` | `FastEthernet0/3` | `POS-PRINTER-01` | Access | VLAN 10 |
-| `SERVERS-SW-2960` | `FastEthernet0/1` | `SRV-CENTRAL-01` | Access | VLAN 40 (Server Farm) |
-| `FLOOR-SW-2960` | `FastEthernet0/1` | `INV-SCANNER-01` | Access | VLAN 20 (Inventory) |
-| `FLOOR-SW-2960` | `FastEthernet0/2` | `ADMIN-PC-01` | Access | VLAN 30 (Management) |
-| `FLOOR-SW-2960` | `FastEthernet0/3` | `AP-STORE-WIFI` | Access | VLAN 50 (Store Wi-Fi) |
-| `BRANCH-SW-2960` | `FastEthernet0/1` | `BRANCH-POS-01` | Access | VLAN 60 (Branch Store) |
+**Copper straight-through**
 
----
+| From | Port | To | Port | Notes |
+|---|---|---|---|---|
+| HQ-R1 | G0/2 | HQ-ASA | G1/2 | inside |
+| HQ-ASA | G1/1 | ISP-R | G0/0 | outside |
+| HQ-R1 | G0/0 | HQ-CORE-SW | G0/1 | trunk |
+| HQ-R2 | G0/0 | HQ-CORE-SW | G0/2 | trunk |
+| HQ-CORE-SW | Fa0/1 | POS-SW | G0/1 | trunk |
+| HQ-CORE-SW | Fa0/2 | SRV-SW | G0/1 | trunk |
+| HQ-CORE-SW | Fa0/3 | FLOOR-SW | G0/1 | trunk |
+| POS-SW | Fa0/1 | POS-PC-01 | Fa0 | VLAN 10 |
+| POS-SW | Fa0/2 | POS-PC-02 | Fa0 | VLAN 10 |
+| POS-SW | Fa0/3 | POS-PRINTER | Fa0 | VLAN 10 |
+| SRV-SW | Fa0/1 | SRV-CENTRAL-01 | Fa0 | VLAN 40 |
+| SRV-SW | Fa0/2 | NMS-PC | Fa0 | VLAN 40 |
+| FLOOR-SW | Fa0/1 | INV-PC-01 | Fa0 | VLAN 20 |
+| FLOOR-SW | Fa0/9 | ADMIN-PC-01 | Fa0 | VLAN 30 |
+| FLOOR-SW | Fa0/17 | AP-STORE | Port 0 | VLAN 50 |
+| BR-R | G0/0 | BR-SW | G0/1 | trunk |
+| BR-SW | Fa0/1 | BR-POS-PC | Fa0 | VLAN 60 |
+| BR-SW | Fa0/13 | BR-OFFICE-PC | Fa0 | VLAN 70 |
 
-## 3. Step-by-Step Build Order in Cisco Packet Tracer
+## 3. End-device addressing
 
-1. **Step 1:** Launch Cisco Packet Tracer (installed in `C:\Program Files\Cisco Packet Tracer 9.0.1`).
-2. **Step 2:** Place the Routers from the bottom left tray: Two `2911` routers for HQ and one `2911` for Branch.
-3. **Step 3:** Turn off `HQ-RTR-01` and `BRANCH-02`, drag `HWIC-2T` module into Slot 0, and turn both routers back on.
-4. **Step 4:** Place Switches: One `3560-24PS` Multilayer Switch, and three `2960-24TT` switches.
-5. **Step 5:** Wire devices using the cable table above (Red Serial DCE cable between Serial 0/0/0 ports).
-6. **Step 6:** Paste IOS configurations into the CLI tabs of each respective device.
-7. **Step 7:** Save the file into `d:\cn-lab\cisco-network\pkt-files\SuperMart_Enterprise_Network.pkt`.
+| Device | IP | Mask | Gateway | DNS |
+|---|---|---|---|---|
+| SRV-CENTRAL-01 | 192.168.11.230 | 255.255.255.240 | 192.168.11.225 | 192.168.11.230 |
+| NMS-PC | 192.168.11.231 | 255.255.255.240 | 192.168.11.225 | 192.168.11.230 |
+| POS-PRINTER | 192.168.10.5 | 255.255.255.0 | 192.168.10.1 | — |
+| INTERNET-SRV | 198.51.100.10 | 255.255.255.0 | 198.51.100.1 | — |
+| POS-PC-01/02 | DHCP → 192.168.10.11, .12 | /24 | 192.168.10.1 | 192.168.11.230 |
+| INV-PC-01 | DHCP → 192.168.11.136 | /26 | 192.168.11.129 | 192.168.11.230 |
+| ADMIN-PC-01 | DHCP → 192.168.11.200 | /27 | 192.168.11.193 | 192.168.11.230 |
+| WIFI-LAPTOP | DHCP → 192.168.11.11 | /25 | 192.168.11.1 | 192.168.11.230 |
+| BR-POS-PC | DHCP → 192.168.20.10 | /26 | 192.168.20.1 | 192.168.11.230 |
+| BR-OFFICE-PC | DHCP → 192.168.20.70 | /27 | 192.168.20.65 | 192.168.11.230 |
+| WH1-PC | DHCP → 192.168.30.10 | /26 | 192.168.30.1 | 192.168.11.230 |
+| WH2-PC | DHCP → 192.168.30.70 | /27 | 192.168.30.65 | 192.168.11.230 |
+
+(DHCP addresses are the first free address after each excluded range; the exact order depends on which PC asks first.)
+
+## 4. Build order
+
+1. Place all devices and add the modules from §1 (router must be **powered off** to insert an HWIC-2T).
+2. Rename each device (Config tab → Display Name) to the hostname in §1.
+3. Cable according to §2. Wait until the switch port LEDs turn green (STP takes ~30 s).
+4. **Security licence for IPsec** on HQ-R1, HQ-R2 and BR-R (CLI):
+   ```
+   enable
+   configure terminal
+   license boot module c2900 technology-package securityk9
+   (type yes to accept)
+   end
+   write memory
+   reload
+   ```
+   After the reload, `show version` lists `securityk9` as the technology package.
+5. Paste the configs in this order: **switches** (CORE, then the access switches) → **HQ-R1, HQ-R2** → **BR-R** → **WH-R1, WH-R2** → **ISP-R** → **HQ-ASA**. Paste one file at a time into the CLI tab, from `enable` to `write memory`.
+6. Configure the servers, AP, laptop, printer and static PCs (services guide).
+7. Set every DHCP PC to DHCP (Desktop → IP Configuration → DHCP).
+8. Run the verification checklist (`verification/test-logs/cisco-verification-checklist.md`).
+9. Save as `cisco-network/pkt-files/SuperMart.pkt`.
+
+## 5. Known Packet Tracer behaviour
+
+| Message / behaviour | Meaning |
+|---|---|
+| `% Invalid input` on `snmp-server enable traps`, `snmp-server host`, `snmp-server location/contact` | PT does not implement these real-IOS SNMP features; the community string (what the MIB browser uses) still works |
+| `% Invalid input` on a `crypto` command | The securityk9 licence is not active yet (step 4) |
+| `clock rate` "only applies to DCE" warning | The DCE end of that cable is on the other router: harmless, or swap the cable ends |
+| First ping across the VPN times out | IKE is negotiating the SA; repeat the ping |
+| OSPF neighbours take ~40 s to form after paste | Normal: hello/dead timers + DR election |
+| ASA still hands out 192.168.1.x | Factory `dhcpd` left on inside: `no dhcpd enable inside` |

@@ -1,150 +1,101 @@
-# Cisco Packet Tracer Simulation Mode: PDU Capture & Protocol Analysis
-## 23Z510 Laboratory Mandatory Checklist Sections D.5 & F
+# Simulation Mode — PDU Capture & Analysis (Checklist D5 and F)
 
-This document details how to capture and inspect **DHCP (DORA)**, **SMTP (Port 25)**, **POP3 (Port 110)**, and **HTTP (Port 5000)** Protocol Data Units (PDUs) in Cisco Packet Tracer 9.0.1.
-
----
-
-## 1. Capturing the DHCP DORA 4-Way Handshake in Simulation Mode
-
-### Step-by-Step Procedure:
-1. In Cisco Packet Tracer, switch to **Simulation Mode** (Click stopwatch icon bottom right or press `Shift + S`).
-2. Click **Show All/None**, then click **Edit Filters**.
-3. Under the **IPv4** tab, check ONLY: **DHCP** and **ARP**.
-4. Click on `POS-COUNTER-01` -> **Desktop** -> **IP Configuration**.
-5. Switch radio button from **Static** to **DHCP**.
-6. Immediately click the **Capture / Forward** button (or press `Alt + Right Arrow`) repeatedly to step through the packets.
-
-### Detailed PDU Breakdown of the 4 Handshake Packets:
-
-```
-+-------------------------------------------------------------------------+
-|                              DHCP DORA FLOW                             |
-+-------------------------------------------------------------------------+
-  POS-COUNTER-01                                           HQ-RTR-01 (DHCP)
-        |                                                          |
-        |--- 1. DHCP DISCOVER (Broadcast 255.255.255.255:67) ------>|
-        |                                                          |
-        |<-- 2. DHCP OFFER (Unicast/Broadcast 192.168.10.10:68) ----|
-        |                                                          |
-        |--- 3. DHCP REQUEST (Broadcast "Accepting 192.168.10.10") ->|
-        |                                                          |
-        |<-- 4. DHCP ACK (Unicast/Broadcast Confirmed + Options) ---|
-```
-
-#### 1. DHCP DISCOVER (Client to All Servers)
-- **Layer 2 (Ethernet II):**
-  - Source MAC: `0001.96A2.8B10` (Client NIC)
-  - Destination MAC: `FFFF.FFFF.FFFF` (Layer 2 Broadcast)
-- **Layer 3 (IPv4):**
-  - Source IP: `0.0.0.0` (Client does not yet possess an IP)
-  - Destination IP: `255.255.255.255` (Limited Broadcast)
-- **Layer 4 (UDP):**
-  - Source Port: `68` (DHCP Client Port)
-  - Destination Port: `67` (DHCP Server Port)
-- **Layer 7 (DHCP Payload):**
-  - Message Type: `Boot Request (1)`
-  - Transaction ID: `0x39A2C104`
-  - Client MAC: `0001.96A2.8B10`
-  - Option 53: `DHCP Discover`
-
-#### 2. DHCP OFFER (Router to Client)
-- **Layer 3 (IPv4):**
-  - Source IP: `192.168.10.1` (Router Gateway Interface)
-  - Destination IP: `255.255.255.255` (or `192.168.10.10`)
-- **Layer 4 (UDP):** Source Port `67` -> Destination Port `68`.
-- **Layer 7 (DHCP Payload):**
-  - Option 53: `DHCP Offer`
-  - Your (Client) IP Address: `192.168.10.10`
-  - Option 1 (Subnet Mask): `255.255.255.0`
-  - Option 3 (Router Gateway): `192.168.10.1`
-  - Option 6 (DNS Server): `192.168.40.10`
-  - Option 51 (IP Address Lease Time): `86400 seconds (1 day)`
-
-#### 3. DHCP REQUEST (Client to Router)
-- Client broadcasts notifying all local networks that it has chosen the offer from server `192.168.10.1` with IP `192.168.10.10`.
-- Option 53: `DHCP Request`.
-
-#### 4. DHCP ACK (Router to Client)
-- Option 53: `DHCP ACK (Acknowledge)`.
-- Client accepts and enters the `BOUND` state, configuring its TCP/IP stack with `192.168.10.10`.
+General procedure in Packet Tracer:
+1. Switch to **Simulation** mode (bottom-right, or Shift+S).
+2. **Edit Filters** → untick everything (Show All/None), then tick only the protocols named in each section below.
+3. Trigger the traffic, then press **Capture/Forward** repeatedly.
+4. Click a coloured envelope in the Event List → **PDU Information**: tab *OSI Model* (In/Out layers + the decision text), *Inbound PDU Details* and *Outbound PDU Details* (every header field). Screenshot each one.
 
 ---
 
-## 2. Capturing SMTP Email Transmission (Port 25)
+## 1. DHCP — Discover, Offer, Request, Acknowledge
 
-### Step-by-Step Procedure:
-1. In Simulation Mode, click **Edit Filters** -> Select: **TCP**, **SMTP**, **DNS**.
-2. Open `POS-COUNTER-01` -> **Email** -> **Compose**.
-   - To: `manager@supermart.local`
-   - Subject: `EOD Sales Settlement`
-   - Body: `Total revenue: Rs. 15,480.00`
-   - Click **Send**.
-3. In Simulation panel, step through with **Capture / Forward**.
+**Filters:** DHCP. **Trigger:** ADMIN-PC-01 → Desktop → IP Configuration → Static → then **DHCP** (or `ipconfig /release` + `ipconfig /renew` in the Command Prompt).
 
-### PDU Inspection:
-1. **DNS Query (Port 53 UDP):** `POS-COUNTER-01` resolves `mail.supermart.local` or `supermart.local` -> DNS answers `192.168.40.10`.
-2. **TCP 3-Way Handshake:**
-   - Packet 1: `SYN` flag set, Seq 0, Dest Port `25`.
-   - Packet 2: `SYN, ACK` flags set from `192.168.40.10:25`.
-   - Packet 3: `ACK` flag set from client.
-3. **SMTP Application Layer PDU:**
-   - Click the green SMTP envelope.
-   - Click **Inbound PDU Details** / **Outbound PDU Details**.
-   - Examine fields:
-     - `COMMAND: MAIL FROM:<cashier1@supermart.local>`
-     - `COMMAND: RCPT TO:<manager@supermart.local>`
-     - `COMMAND: DATA`
-     - Status: `250 2.0.0 Ok: queued as 4A8BC1002`
+```
+ADMIN-PC-01 (VLAN 30)                      HQ-R1 G0/0.30 (DHCP server)
+      |--- 1 DISCOVER  0.0.0.0:68 -> 255.255.255.255:67  ----->|
+      |<-- 2 OFFER     192.168.11.194:67 -> 255.255.255.255:68 -|   yiaddr 192.168.11.200
+      |--- 3 REQUEST   0.0.0.0:68 -> 255.255.255.255:67  ----->|   "I take .200 from server .194"
+      |<-- 4 ACK       192.168.11.194:67 -> 255.255.255.255:68 -|   lease confirmed + options
+```
+
+| Field | Discover | Offer | Request | Ack |
+|---|---|---|---|---|
+| Ethernet dst | FFFF.FFFF.FFFF | FFFF.FFFF.FFFF (client has no IP yet) | FFFF.FFFF.FFFF | FFFF.FFFF.FFFF |
+| 802.1Q (on trunk) | VLAN 30 | VLAN 30 | VLAN 30 | VLAN 30 |
+| IP src → dst | 0.0.0.0 → 255.255.255.255 | 192.168.11.194 → 255.255.255.255 | 0.0.0.0 → 255.255.255.255 | 192.168.11.194 → 255.255.255.255 |
+| UDP | 68 → 67 | 67 → 68 | 68 → 67 | 67 → 68 |
+| op | 1 BOOTREQUEST | 2 BOOTREPLY | 1 | 2 |
+| ciaddr / yiaddr | 0.0.0.0 / 0.0.0.0 | 0.0.0.0 / **192.168.11.200** | 0.0.0.0 / 0.0.0.0 | 0.0.0.0 / **192.168.11.200** |
+| chaddr | client MAC | client MAC | client MAC | client MAC |
+| Options | 53=Discover | 53=Offer, 1=255.255.255.224, 3=192.168.11.193, 6=192.168.11.230, 15=supermart.local, 51=lease, 54=server id | 53=Request, 50=requested IP, 54=server id | 53=Ack + same options as the Offer |
+
+Notes for the viva:
+- The Request is still **broadcast** so any other DHCP server that made an offer learns that it was not chosen.
+- The server is HQ-R1 (.194) even though HQ-R2 is HSRP active for VLAN 30: DHCP is a broadcast, both routers hear it, and only HQ-R1 has a pool.
+- The gateway handed out (option 3) is the **HSRP virtual IP** .193, not either router's real address.
+
+Screenshots: `D5-dhcp-discover.png`, `D5-dhcp-offer.png`, `D5-dhcp-request.png`, `D5-dhcp-ack.png`.
 
 ---
 
-## 3. Capturing POP3 Email Retrieval (Port 110)
+## 2. SMTP — sending mail
 
-### Step-by-Step Procedure:
-1. Keep filters set to **TCP** and **POP3**.
-2. Open `ADMIN-PC-01` -> **Desktop** -> **Email** -> Click **Receive**.
-3. Step through packets with **Capture / Forward**.
+**Filters:** DNS, TCP, SMTP. **Trigger:** POS-PC-01 → Email → Compose → To `manager@supermart.local` → Send.
 
-### PDU Inspection:
-1. TCP Handshake on Destination Port `110`.
-2. Server banner: `+OK POP3 server ready`.
-3. Client commands transmitted in PDU data:
-   - `USER manager` -> Server: `+OK password required`
-   - `PASS ManagerPass123` -> Server: `+OK mailbox locked and ready`
-   - `STAT` -> Server: `+OK 1 352` (1 message, 352 octets)
-   - `RETR 1` -> Server streams full email body down to client.
+| # | PDU | Key fields |
+|---|---|---|
+| 1 | DNS query/response | UDP → 192.168.11.230:53, `mail.supermart.local` A? → 192.168.11.230 |
+| 2–4 | TCP 3-way handshake | SYN → SYN+ACK → ACK, dst port **25**, src port ephemeral (1025+) |
+| 5 | SMTP data | Inbound PDU Details shows the SMTP layer: sender `cashier1@supermart.local`, recipient `manager@supermart.local`, the message body |
+| 6 | Server reply | SMTP reply code (250 OK → the client shows **Send Success**) |
+| 7 | TCP FIN/ACK | connection teardown |
+
+SMTP command sequence being modelled: `220` greeting → `HELO` → `250` → `MAIL FROM:<cashier1@…>` → `250` → `RCPT TO:<manager@…>` → `250` → `DATA` → `354` → message + `.` → `250` → `QUIT` → `221`.
+
+Path note: POS-PC-01 → HQ-R1 (active for VLAN 10; ACL-POS-IN permits because the destination is the server) → VLAN 40 → server. The server's TCP replies go via HQ-R2 (active for VLAN 40).
+
+Screenshot: `D5-smtp.png` (the SMTP envelope, Outbound PDU Details).
 
 ---
 
-## 4. Section F: Complete Layer 1 to 7 Hop-by-Hop Trace
+## 3. POP3 — retrieving mail
 
-Trace of HTTP POS Web Transaction: `POS-COUNTER-01` (`192.168.10.10`) to Central Server (`192.168.40.10`):
+**Filters:** TCP, POP3. **Trigger:** ADMIN-PC-01 → Email → **Receive**.
 
-```
-+---------------------------------------------------------------------------+
-|                          OSI 7-LAYER PDU DECONSTRUCTION                   |
-+---------------------------------------------------------------------------+
-  Layer 7 (Application) : HTTP GET /api/products HTTP/1.1
-  Layer 6 (Presentation): Plaintext ASCII / JSON encoding
-  Layer 5 (Session)     : TCP Connection Handle 1042
-  Layer 4 (Transport)   : TCP [Src Port: 49152, Dst Port: 5000, Seq: 1, ACK: 1]
-  Layer 3 (Network)     : IP [Src: 192.168.10.10, Dst: 192.168.40.10, TTL: 128]
-  Layer 2 (Data Link)   : IEEE 802.1Q Tagged Frame [VLAN: 10, EtherType: 0x0800]
-  Layer 1 (Physical)    : FastEthernet Copper Cat6 Signaling
-```
+| # | PDU | Key fields |
+|---|---|---|
+| 1–3 | TCP handshake | dst port **110** |
+| 4 | POP3 request | `USER manager`, `PASS …` |
+| 5 | POP3 response | `+OK`, message list (`STAT`/`LIST`), then `RETR 1` returns the message |
+| 6 | TCP teardown | FIN/ACK |
 
-### Layer-by-Layer Decisions at Each Device:
+POP3 sends the username and password in clear text, which is visible in the PDU. That is why real deployments use POP3S (995) or IMAPS (993).
 
-1. **At `POS-COUNTER-01` (Origin):**
-   - **Out Layers:** Layer 3 compares `192.168.40.10` with mask `255.255.255.0`. Network IDs differ (`192.168.40.0` vs `192.168.10.0`). Client routes packet to Default Gateway `192.168.10.1` (Virtual Gateway MAC: `0000.0c07.ac0a`).
-2. **At `POS-ACCESS-SW-2960`:**
-   - **In Layers:** Checks Source MAC against Sticky Port Security table (Allowed).
-   - **Out Layers:** Forwarding engine looks up destination MAC; selects Trunk port `Gig0/1`; inserts 4-byte 802.1Q header tag with **VLAN ID 10**.
-3. **At `HQ-RTR-01-PRIMARY` (Core Router):**
-   - **In Layers:** Subinterface `Gi0/0.10` receives frame, strips 802.1Q header, validates Layer 3 IP checksum.
-   - **Routing Decision:** Consults routing table (`show ip route`). Matches directly connected subnet `192.168.40.0/24 via GigabitEthernet0/0.40`.
-   - **ACL Check:** Evaluates `ACL-STORE-SECURITY`; matches `permit tcp 192.168.10.0 0.0.0.255 host 192.168.40.10 eq 5000` -> **PERMITTED**.
-   - **Out Layers:** Decrements TTL from 128 to 127. Recalculates IP checksum. Re-encapsulates frame with 802.1Q tag for **VLAN ID 40** and forwards out `Gi0/0.40`.
-4. **At `SRV-CENTRAL-01` (Destination):**
-   - Receives untagged frame on FastEthernet 0. Validates MAC. Reads IP. Passes TCP payload to port 5000. SuperMart Web application processes request and generates HTTP 200 OK response!
+Screenshot: `D5-pop3.png`.
+
+---
+
+## 4. Section F — hop-by-hop trace with headers and routing decisions
+
+**Path:** BR-POS-PC (192.168.20.10, Branch VLAN 60) → SRV-CENTRAL-01 (192.168.11.230, HQ VLAN 40), HTTP.
+
+**Steps**
+1. Realtime mode: from BR-POS-PC `ping 192.168.11.230` until it succeeds (fills ARP caches and brings up the IPsec SA, so the trace shows only the HTTP exchange).
+2. Simulation mode → filters **TCP, HTTP** (add **ICMP** if you trace a ping instead).
+3. BR-POS-PC → Web Browser → `http://192.168.11.230` → Go.
+4. Capture/Forward one step at a time. At each device click the envelope and record the table below.
+
+| Hop | Device | What the OSI Model tab shows | Routing / forwarding decision |
+|---|---|---|---|
+| 1 | BR-POS-PC | Out: L7 HTTP GET, L4 TCP src 1025+ dst 80, L3 IP 192.168.20.10→192.168.11.230 TTL 128, L2 Ethernet II dst = BR-R G0/0 MAC | Destination is outside 192.168.20.0/26, so use default gateway 192.168.20.1 |
+| 2 | BR-SW | In Fa0/1 (VLAN 60), out G0/1 with **802.1Q tag 60** | MAC address table lookup; port security permits the sticky MAC |
+| 3 | BR-R | In G0/0.60 (tag removed). Out S0/0/0: L3 outer **10.0.0.2 → 10.0.0.1, ESP**; L2 **HDLC** | Route lookup: `O 192.168.11.224/28 [110/65] via 10.0.0.1` (longest match /28, cheaper than backup 201). Crypto map VPN-MAP-R1 / ACL 110 match → encrypt. TTL 128→127 |
+| 4 | HQ-R1 | In S0/0/0: ESP decrypted. Out G0/0.40: L2 Ethernet + **802.1Q tag 40**, dst = server MAC | `C 192.168.11.224/28 directly connected Gi0/0.40`; ARP for .230. TTL 127→126 |
+| 5 | HQ-CORE-SW | In G0/1 tag 40, out Fa0/2 tag 40 | MAC lookup in VLAN 40 |
+| 6 | SRV-SW | In G0/1, out Fa0/1 untagged | Access port VLAN 40 |
+| 7 | SRV-CENTRAL-01 | In: MAC matches, IP matches, TCP dst 80 → HTTP server | Builds HTTP 200 OK |
+| Return | SRV-CENTRAL-01 → HQ-R2 → HQ-R1 → BR-R | Ethernet dst **0000.0c07.ac28** (HSRP virtual MAC of group 40) | HQ-R2 is HSRP active for VLAN 40; its route `O IA 192.168.20.0/24 via 10.0.0.9` (cost 66) goes through HQ-R1, which re-encrypts on S0/0/0 |
+
+Screenshots: `F1-pdu-details-hop1-PC.png` (all headers of the original request), `F1-osi-model-hop3-BR-R.png` (the routing + encryption decision text), `F1-pdu-details-hop4-HQ-R1.png` (802.1Q VLAN 40 tag and TTL 126), `F1-return-hsrp-mac.png` (server frame to the virtual MAC).

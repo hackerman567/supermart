@@ -22,107 +22,99 @@ export default function NetworkView({ networkStatus }) {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
+  // Mirrors cisco-network/configs/*.cfg - keep in sync when the Packet Tracer design changes.
   const vlanTable = [
-    { vlan: 10, name: 'POS-BILLING', subnet: '192.168.10.0/24', mask: '255.255.255.0', gateway: '192.168.10.1 (Backup VIP)', dhcp: '192.168.10.10 - .254', purpose: 'Cashier billing counters and thermal receipt printers' },
-    { vlan: 20, name: 'INVENTORY-OPS', subnet: '192.168.20.0/24', mask: '255.255.255.0', gateway: '192.168.20.1 (Backup VIP)', dhcp: '192.168.20.10 - .254', purpose: 'Barcode scanners and warehouse computers' },
-    { vlan: 30, name: 'MANAGEMENT', subnet: '192.168.30.0/24', mask: '255.255.255.0', gateway: '192.168.30.1 (Backup VIP)', dhcp: '192.168.30.10 - .254', purpose: 'Store manager and accounting office PCs' },
-    { vlan: 40, name: 'SERVER-FARM', subnet: '192.168.40.0/24', mask: '255.255.255.0', gateway: '192.168.40.1 (Backup VIP)', dhcp: 'Fixed IP', purpose: 'Central database, website, email, and DNS server' },
-    { vlan: 50, name: 'STORE-WIFI', subnet: '192.168.50.0/24', mask: '255.255.255.0', gateway: '192.168.50.1 (Backup VIP)', dhcp: '192.168.50.10 - .254', purpose: 'Customer free Wi-Fi and staff mobile phones' },
-    { vlan: 99, name: 'NATIVE-MGMT', subnet: '192.168.99.0/24', mask: '255.255.255.0', gateway: '192.168.99.1 (Backup VIP)', dhcp: 'Fixed IP', purpose: 'Network admin login for switches and routers' },
-    { vlan: 'WAN', name: 'HQ-BRANCH-LINK', subnet: '10.0.0.0/30', mask: '255.255.255.252', gateway: 'Direct Cable', dhcp: 'Fixed Link', purpose: 'Direct serial cable between Main Store and Branch 02' },
-    { vlan: 60, name: 'BRANCH-STORE', subnet: '192.168.60.0/24', mask: '255.255.255.0', gateway: '192.168.60.1', dhcp: '192.168.60.10 - .254', purpose: 'Remote Branch 02 cashier counters' }
+    { vlan: 10, name: 'POS-BILLING', subnet: '192.168.10.0/24', mask: '255.255.255.0', gateway: '192.168.10.1 (HSRP VIP, R1 active)', dhcp: '192.168.10.11 - .254', purpose: 'Cashier billing counters and thermal receipt printers (200 hosts)' },
+    { vlan: 50, name: 'STORE-WIFI', subnet: '192.168.11.0/25', mask: '255.255.255.128', gateway: '192.168.11.1 (HSRP VIP, R2 active)', dhcp: '192.168.11.11 - .126', purpose: 'Staff handheld scanners on WPA2 Wi-Fi (100 hosts)' },
+    { vlan: 20, name: 'INVENTORY', subnet: '192.168.11.128/26', mask: '255.255.255.192', gateway: '192.168.11.129 (HSRP VIP, R1 active)', dhcp: '192.168.11.136 - .190', purpose: 'Stock room PCs and barcode stations (50 hosts)' },
+    { vlan: 30, name: 'ADMIN', subnet: '192.168.11.192/27', mask: '255.255.255.224', gateway: '192.168.11.193 (HSRP VIP, R2 active)', dhcp: '192.168.11.200 - .222', purpose: 'Store manager and accounting office PCs (25 hosts)' },
+    { vlan: 40, name: 'SERVERS', subnet: '192.168.11.224/28', mask: '255.255.255.240', gateway: '192.168.11.225 (HSRP VIP, R2 active)', dhcp: 'Fixed IP (.230 server, .231 NMS)', purpose: 'Central database, website, email, DNS, FTP server' },
+    { vlan: 99, name: 'NET-MGMT', subnet: '192.168.11.240/28', mask: '255.255.255.240', gateway: '192.168.11.241 (HSRP VIP, R1 active)', dhcp: 'Fixed IP', purpose: 'SSH/SNMP management of switches and routers' },
+    { vlan: 60, name: 'BR-POS', subnet: '192.168.20.0/26', mask: '255.255.255.192', gateway: '192.168.20.1', dhcp: '192.168.20.10 - .62', purpose: 'Branch 02 cashier counters (50 hosts)' },
+    { vlan: 70, name: 'BR-OFFICE', subnet: '192.168.20.64/27', mask: '255.255.255.224', gateway: '192.168.20.65', dhcp: '192.168.20.70 - .94', purpose: 'Branch 02 office PCs (20 hosts)' },
+    { vlan: 'RIP', name: 'WAREHOUSE', subnet: '192.168.30.0/26 + .64/27', mask: '/26, /27', gateway: '192.168.30.1 / .65', dhcp: 'Router pools', purpose: 'Dispatch bay and cold storage (RIPv2 domain)' },
+    { vlan: 'WAN', name: 'P2P LINKS', subnet: '10.0.0.0/27 → 7 × /30', mask: '255.255.255.252', gateway: 'Point-to-point', dhcp: 'Fixed Link', purpose: 'Serial WAN, router interconnect, firewall link' }
   ];
 
   const ripConfig = `! ===================================================
-! ROUTING INFORMATION PROTOCOL (RIP v2) CONFIGURATION
-! Basic distance-vector routing with 30s update timer
+! RIPv2 - WAREHOUSE TRIANGLE (WH-R1 shown)
+! Updates every 30 s to 224.0.0.9; invalid 180, holddown 180, flush 240
 ! ===================================================
 router rip
  version 2
  no auto-summary
- network 192.168.10.0
- network 192.168.20.0
- network 192.168.30.0
- network 192.168.40.0
- network 192.168.50.0
  network 10.0.0.0
- passive-interface GigabitEthernet0/0.10
- passive-interface GigabitEthernet0/0.50
- timers basic 30 180 180 240`;
+ network 192.168.30.0
+ passive-interface GigabitEthernet0/0
+ timers basic 30 180 180 240
+!
+! On HQ-R2 (ASBR): RIP <-> OSPF
+router rip
+ default-information originate
+router ospf 1
+ redistribute rip subnets
+ summary-address 192.168.30.0 255.255.255.0`;
 
   const ospfConfig = `! ===================================================
-! OSPF CONFIGURATION (FAST CONVERGENCE)
-! Area 0: Main Store | Area 1: Branch Store
+! OSPF - Area 0: HQ + WAN triangle | Area 1: Branch LANs
 ! ===================================================
-! On Main Store Core Router:
+! On HQ-R1 (one wildcard covers the whole HQ /23):
 router ospf 1
  router-id 1.1.1.1
- network 192.168.10.0 0.0.0.255 area 0
- network 192.168.20.0 0.0.0.255 area 0
- network 192.168.30.0 0.0.0.255 area 0
- network 192.168.40.0 0.0.0.255 area 0
- network 192.168.50.0 0.0.0.255 area 0
- network 10.0.0.0 0.0.0.3 area 1
- area 0 range 192.168.0.0 255.255.192.0
- passive-interface GigabitEthernet0/0.10
- passive-interface GigabitEthernet0/0.50
+ passive-interface default
+ no passive-interface GigabitEthernet0/1
+ no passive-interface Serial0/0/0
+ network 192.168.10.0 0.0.1.255 area 0
+ network 10.0.0.0 0.0.0.3 area 0
+ network 10.0.0.8 0.0.0.3 area 0
+ default-information originate
 !
-! On Branch Store Router:
+! On BR-R (ABR) - summarises the branch to one route:
 router ospf 1
- router-id 2.2.2.2
- network 10.0.0.0 0.0.0.3 area 1
- network 192.168.60.0 0.0.0.255 area 1`;
+ router-id 3.3.3.3
+ network 10.0.0.0 0.0.0.3 area 0
+ network 10.0.0.4 0.0.0.3 area 0
+ network 192.168.20.0 0.0.0.127 area 1
+ area 1 range 192.168.20.0 255.255.255.0`;
 
   const servicesConfig = `! ===================================================
-! AUTOMATIC IP ASSIGNMENT (DHCP) & DEVICE MONITORING (SNMP)
+! DHCP (HQ-R1) & SNMP AGENT
 ! ===================================================
-! Reserve router and server IPs so they never get handed out to PCs
-ip dhcp excluded-address 192.168.10.1 192.168.10.9
-ip dhcp excluded-address 192.168.20.1 192.168.20.9
+! Reserve gateway, router and printer addresses
+ip dhcp excluded-address 192.168.10.1 192.168.10.10
 
-! Cashier counters automatically get IP, gateway, and DNS
-ip dhcp pool POOL-POS-VLAN10
+! Options: 1 mask, 3 gateway (HSRP VIP), 6 DNS, 15 domain
+ip dhcp pool VLAN10-POS
  network 192.168.10.0 255.255.255.0
  default-router 192.168.10.1
- dns-server 192.168.40.10
+ dns-server 192.168.11.230
  domain-name supermart.local
- option 3 ip 192.168.10.1
- option 6 ip 192.168.40.10
- option 15 string supermart.local
 !
-! Monitoring agent so store IT can check CPU and bandwidth
+! SNMP agent polled by NMS-PC (192.168.11.231)
 snmp-server community SuperMartRO RO
-snmp-server location "Main Store Server Rack 01"
-snmp-server contact "admin@supermart.local"
 snmp-server enable traps
-snmp-server host 192.168.40.10 version 2c SuperMartRO`;
+snmp-server host 192.168.11.231 version 2c SuperMartRO
+logging 192.168.11.230`;
 
   const vpnConfig = `! ===================================================
-! ENCRYPTED VPN TUNNEL (MAIN STORE <-> BRANCH 02)
-! Keeps customer and billing data safe over the internet
+! IPsec SITE-TO-SITE VPN (HQ-R1 <-> BR-R, primary link)
+! Same on HQ-R2 <-> BR-R for the backup link
 ! ===================================================
 crypto isakmp policy 10
- encr aes 256
- hash sha256
+ encryption aes 256
+ hash sha
  authentication pre-share
- group 14
+ group 5
  lifetime 86400
-
-crypto isakmp key SuperMartPass2026 address 10.0.0.2
-
-crypto ipsec transform-set TS-SUPERMART-VPN esp-aes 256 esp-sha256-hmac
-
-ip access-list extended ACL-VPN-TRAFFIC
- permit ip 192.168.40.0 0.0.0.255 192.168.60.0 0.0.0.255
- permit ip 192.168.10.0 0.0.0.255 192.168.60.0 0.0.0.255
-
-crypto map CMAP-HQ 10 ipsec-isakmp
+crypto isakmp key SuperMartVPN2026 address 10.0.0.2
+crypto ipsec transform-set TS-SUPERMART esp-aes esp-sha-hmac
+access-list 110 permit ip 192.168.10.0 0.0.1.255 192.168.20.0 0.0.0.255
+crypto map VPN-MAP 10 ipsec-isakmp
  set peer 10.0.0.2
- set transform-set TS-SUPERMART-VPN
- match address ACL-VPN-TRAFFIC
-
+ set transform-set TS-SUPERMART
+ match address 110
 interface Serial0/0/0
- crypto map CMAP-HQ`;
+ crypto map VPN-MAP`;
 
   return (
     <div className="network-view">
@@ -139,7 +131,7 @@ interface Serial0/0/0
           <div className="metric-info">
             <span className="metric-title">Backup Routers</span>
             <span className="metric-value">2 Routers</span>
-            <span className="metric-sub">If Router 1 fails, Router 2 takes over in 1s</span>
+            <span className="metric-sub">Load shared per VLAN; either takes over all if one fails</span>
           </div>
           <div className="metric-icon-box primary">
             <Cpu size={22} />
@@ -208,17 +200,17 @@ interface Serial0/0/0
               <Binary size={18} color="#059669" />
               IP Address Breakdown & Binary Example
             </div>
-            <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Base Address: 192.168.0.0/16</span>
+            <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Company summary: 192.168.0.0/19 (VLSM)</span>
           </div>
           <div className="card-body">
             <div style={{ background: '#F8FAFC', padding: 16, borderRadius: 8, border: '1px solid #E2E8F0', marginBottom: 16 }}>
               <strong>What is an IP address?</strong>
               <p style={{ fontSize: '0.82rem', color: '#475569', marginTop: 4 }}>
-                An IP address is like a phone number for each computer on the network. We write it in four numbers (like <code>192.168.40.10</code>), but computers read it in 1s and 0s (binary).
+                An IP address is like a phone number for each computer on the network. We write it in four numbers (like <code>192.168.11.230</code>), but computers read it in 1s and 0s (binary).
               </p>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', marginTop: 8, color: '#0F172A', background: '#FFFFFF', padding: 10, borderRadius: 6, border: '1px solid #CBD5E1' }}>
-                192 = 11000000 | 168 = 10101000 | 40 = 00101000 | 10 = 00001010<br />
-                Subnet Mask: 255.255.255.0 (First 24 bits are network name, last 8 bits are for 254 computers)
+                192 = 11000000 | 168 = 10101000 | 11 = 00001011 | 230 = 11100110<br />
+                Subnet Mask: 255.255.255.240 (/28: 28 network bits, 4 host bits = 14 usable, .225 - .238)
               </div>
             </div>
 
@@ -323,14 +315,14 @@ interface Serial0/0/0
               <div style={{ background: '#F8FAFC', padding: 14, borderRadius: 8, border: '1px solid #E2E8F0' }}>
                 <strong style={{ color: '#D97706' }}>RIP (Older, Slower):</strong>
                 <p style={{ fontSize: '0.8rem', color: '#475569', marginTop: 4 }}>
-                  Broadcasting its full route table every 30 seconds. If a wire is cut, RIP waits for 3 to 4 minutes before realizing the path is dead. Cashiers would freeze and customers would wait.
+                  Sends its full route table every 30 seconds. Used only in the warehouse. If a link is cut it learns the detour at the next update (up to 30 s); if a neighbour silently dies it waits for the 180 s invalid and 240 s flush timers.
                 </p>
               </div>
 
               <div style={{ background: '#ECFDF5', padding: 14, borderRadius: 8, border: '1px solid #A7F3D0' }}>
                 <strong style={{ color: '#059669' }}>OSPF (Modern, Fast - Recommended):</strong>
                 <p style={{ fontSize: '0.8rem', color: '#065F46', marginTop: 4 }}>
-                  Only sends quick updates when something changes. If a wire is cut, OSPF switches to the backup route in just <strong>1.4 seconds</strong>! Cashiers experience zero downtime.
+                  Floods an update the moment something changes and recalculates the shortest path. When the primary branch link is cut, traffic moves to the backup link within <strong>a few seconds</strong> (measured in the Packet Tracer lab).
                 </p>
               </div>
             </div>
@@ -373,7 +365,7 @@ interface Serial0/0/0
               <div style={{ padding: 12, borderRadius: 8, background: '#F1F5F9' }}>
                 <strong>Shared Receipt Printer:</strong>
                 <p style={{ fontSize: '0.78rem', color: '#475569', marginTop: 4 }}>
-                  The thermal printer has its own network IP (192.168.10.12). Any billing counter on VLAN 10 can print receipts directly over the local network.
+                  The thermal printer has its own network IP (192.168.10.5). Any billing counter on VLAN 10 can print receipts directly over the local network.
                 </p>
               </div>
             </div>
@@ -402,14 +394,14 @@ interface Serial0/0/0
               <div style={{ padding: 12, borderRadius: 8, background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
                 <strong style={{ color: '#1D4ED8' }}>How Router Backup Works (HSRP):</strong>
                 <p style={{ fontSize: '0.78rem', color: '#1E40AF', marginTop: 4 }}>
-                  Router 1 and Router 2 share one single virtual gateway address (192.168.10.1). All cashiers send traffic to this address. If Router 1 loses power, Router 2 immediately handles the traffic. No cashier even notices.
+                  Router 1 and Router 2 share one virtual gateway per department (e.g. 192.168.10.1). Router 1 is in charge of billing, inventory and management; Router 2 of admin, servers and Wi-Fi, so both share the load. If one fails, the other takes over every department within seconds.
                 </p>
               </div>
 
               <div style={{ padding: 12, borderRadius: 8, background: '#FEF3C7', border: '1px solid #FDE68A' }}>
                 <strong style={{ color: '#92400E' }}>How Secure VPN Works:</strong>
                 <p style={{ fontSize: '0.78rem', color: '#78350F', marginTop: 4 }}>
-                  Sales data from Branch 02 travels across the internet to the main server. The VPN scrambles (encrypts) this data with AES-256 so outsiders cannot intercept passwords or customer card info.
+                  Sales data from Branch 02 travels over leased WAN lines to the main server. IPsec encrypts it (AES) on both the primary and backup links, so anyone tapping the line sees only scrambled ESP packets.
                 </p>
               </div>
             </div>
@@ -447,7 +439,7 @@ interface Serial0/0/0
                     <td><strong>Step 1</strong></td>
                     <td>Cashier PC</td>
                     <td>Port Fa0</td>
-                    <td>Cashier clicks to record a bill. The PC packages the bill data into an HTTP message addressed to server 192.168.40.10.</td>
+                    <td>Cashier clicks to record a bill. The PC packages the bill data into an HTTP message addressed to server 192.168.11.230.</td>
                   </tr>
                   <tr>
                     <td><strong>Step 2</strong></td>
@@ -459,7 +451,7 @@ interface Serial0/0/0
                     <td><strong>Step 3</strong></td>
                     <td>Main Core Switch</td>
                     <td>Port Fa0/1 to Gi0/1</td>
-                    <td>Core switch forwards the packet up to the primary router to find the server network.</td>
+                    <td>Core switch forwards the packet up to HQ-R1, the active gateway for VLAN 10.</td>
                   </tr>
                   <tr>
                     <td><strong>Step 4</strong></td>

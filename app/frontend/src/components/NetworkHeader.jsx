@@ -26,7 +26,7 @@ export default function NetworkHeader({ networkStatus, onRefresh }) {
         </div>
 
         <div className="telemetry-chip">
-          <span>IP: <strong>{networkStatus?.serverIp || '192.168.40.10'}</strong></span>
+          <span>IP: <strong>{networkStatus?.serverIp || '192.168.11.230'}</strong></span>
         </div>
 
         <div className="telemetry-chip">
@@ -35,7 +35,7 @@ export default function NetworkHeader({ networkStatus, onRefresh }) {
         </div>
 
         <div className="telemetry-chip">
-          <span>Gateway: <strong>{networkStatus?.gatewayIp || '192.168.40.1'}</strong></span>
+          <span>Gateway: <strong>{networkStatus?.gatewayIp || '192.168.11.225'}</strong></span>
         </div>
 
         <div className="telemetry-chip">

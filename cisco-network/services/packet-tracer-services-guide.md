@@ -1,148 +1,87 @@
-# Cisco Packet Tracer Network Services & Configuration Guide
-## 23Z510 Mandatory Checklist Section D
+# Packet Tracer GUI Configuration — Servers, Wireless, Printer, NMS
 
-This guide provides exact configuration steps for all services hosted on `SRV-CENTRAL-01` (`192.168.40.10`) and Cisco Routers in Cisco Packet Tracer 9.0.1.
+The router/switch side of these services (DHCP pools, ACLs, SNMP agents) is in `cisco-network/configs/`. This page covers what must be set in the Packet Tracer GUI. Theory is in the report, Sections D and E.
 
----
+## 1. SRV-CENTRAL-01 — IP settings
+Desktop → IP Configuration → Static: IP `192.168.11.230`, mask `255.255.255.240`, gateway `192.168.11.225`, DNS `192.168.11.230`.
 
-## 1. DHCP Configuration & Troubleshooting Demo
+## 2. DNS
+Services → DNS → **On**. Add **A records**:
 
-### A. Router IOS DHCP Configuration
-On `HQ-RTR-01-PRIMARY`:
-```cisco
-enable
-configure terminal
+| Name | Address |
+|---|---|
+| supermart.local | 192.168.11.230 |
+| www.supermart.local | 192.168.11.230 |
+| mail.supermart.local | 192.168.11.230 |
+| ftp.supermart.local | 192.168.11.230 |
+| www.isp.example | 198.51.100.10 |
 
-! 1. Exclude static management and gateway addresses
-ip dhcp excluded-address 192.168.10.1 192.168.10.9
-ip dhcp excluded-address 192.168.20.1 192.168.20.9
-ip dhcp excluded-address 192.168.30.1 192.168.30.9
-ip dhcp excluded-address 192.168.50.1 192.168.50.9
+Test (any PC): `nslookup www.supermart.local` → `192.168.11.230`.
 
-! 2. Configure POS Billing Pool (VLAN 10)
-ip dhcp pool POOL-POS-VLAN10
- network 192.168.10.0 255.255.255.0
- default-router 192.168.10.1
- dns-server 192.168.40.10
- domain-name supermart.local
- option 3 ip 192.168.10.1
- option 6 ip 192.168.40.10
- option 15 string supermart.local
- lease 1 0 0
+## 3. HTTP / HTTPS
+Services → HTTP → HTTP **On**, HTTPS **On**. Edit `index.html`:
+```html
+<html><body>
+<h1>SuperMart Intranet</h1>
+<p>SRV-CENTRAL-01 | 192.168.11.230 | VLAN 40 Servers</p>
+<p>Billing and inventory portal</p>
+</body></html>
 ```
+Test: Web Browser → `http://www.supermart.local` and `https://www.supermart.local`.
 
-### B. DHCP Troubleshooting Demo (For Lab Viva)
-1. **The Bug:** Temporarily misconfigure the pool with the wrong default gateway:
-   ```cisco
-   ip dhcp pool POOL-POS-VLAN10
-    default-router 192.168.10.254
-   ```
-2. **The Symptom:** Open `POS-COUNTER-01` -> Command Prompt -> run `ipconfig /renew`.
-   - The PC obtains IP `192.168.10.10`, but Gateway is `192.168.10.254`.
-   - Try `ping 192.168.40.10` -> Fails with `Request timed out`.
-3. **The Fix:** Restore correct default router:
-   ```cisco
-   ip dhcp pool POOL-POS-VLAN10
-    default-router 192.168.10.1
-   ```
-   Run `ipconfig /renew` on PC -> Ping `192.168.40.10` succeeds with `Reply from 192.168.40.10: bytes=32 time=1ms`.
+## 4. E-mail (SMTP + POP3)
+Services → EMAIL → SMTP **On**, POP3 **On**, Domain Name `supermart.local` → **Set**. Users:
 
----
+| User | Password |
+|---|---|
+| cashier1 | PosPassword123 |
+| manager | ManagerPass123 |
 
-## 2. DNS Service Configuration on `SRV-CENTRAL-01`
+Clients (Desktop → Email → Configure):
 
-1. Click on `SRV-CENTRAL-01` in Packet Tracer.
-2. Navigate to the **Services** tab -> Click **DNS** on the left menu.
-3. Turn **DNS Service: ON**.
-4. Add the following resource records:
+| PC | Your name | Address | Incoming/Outgoing server | User / password |
+|---|---|---|---|---|
+| POS-PC-01 | Counter 01 | cashier1@supermart.local | mail.supermart.local | cashier1 / PosPassword123 |
+| ADMIN-PC-01 | Store Manager | manager@supermart.local | mail.supermart.local | manager / ManagerPass123 |
 
-| Name | Type | IP Address | Action |
-| :--- | :--- | :--- | :--- |
-| `supermart.local` | `A Record` | `192.168.40.10` | Click Add |
-| `pos.supermart.local` | `A Record` | `192.168.40.10` | Click Add |
-| `mail.supermart.local`| `A Record` | `192.168.40.10` | Click Add |
+Test: POS-PC-01 → Compose → To `manager@supermart.local`, subject `EOD settlement counter 01` → Send. ADMIN-PC-01 → Receive.
+(Packet Tracer's mail server supports SMTP and POP3; IMAP is explained in the report but cannot be enabled in PT.)
 
-5. **Verification:** From `POS-COUNTER-01` Command Prompt, run:
-   ```cmd
-   nslookup supermart.local
-   ```
-   Output confirms: `Address: 192.168.40.10`.
+## 5. FTP and syslog
+Services → FTP → **On**. Add users: `posadmin` / `PosAdmin@2026` with Write, Read, Delete, Rename, List; `branch` / `Branch@2026` with Read, List.
+Test (POS-PC-01 or BR-POS-PC Command Prompt):
+```
+ftp 192.168.11.230
+Username: posadmin
+Password: PosAdmin@2026
+ftp> dir
+ftp> put sampleFile.txt
+ftp> quit
+```
+Services → SYSLOG → **On**. Router log messages (e.g. interface down) appear here because of `logging 192.168.11.230`.
 
----
+## 6. Wireless — AP-STORE (WPA2) and WIFI-LAPTOP
+1. AP-STORE → Config → **Port 1**: SSID `SuperMart-Staff`, Authentication **WPA2-PSK**, PSK Pass Phrase `StoreWiFi@2026`, Encryption **AES**.
+2. WIFI-LAPTOP → Physical: power off, remove the wired NIC, insert **WPC300N**, power on.
+3. WIFI-LAPTOP → Config → Wireless0: SSID `SuperMart-Staff`, **WPA2-PSK**, same pass phrase, AES. IP Configuration → **DHCP**.
+4. A dotted line appears from the AP to the laptop. The laptop gets 192.168.11.11, gateway 192.168.11.1.
 
-## 3. HTTP / HTTPS Web Server Configuration
+Tests (show the ACL-WIFI-IN policy):
 
-1. In `SRV-CENTRAL-01` -> **Services** -> **HTTP**.
-2. Turn **HTTP: ON** and **HTTPS: ON**.
-3. Click **Edit** next to `index.html` and replace with:
-   ```html
-   <html>
-   <head><title>SuperMart Enterprise Portal</title></head>
-   <body style="font-family:sans-serif; background:#0B0F19; color:#FFFFFF; text-align:center; padding:50px;">
-     <h1 style="color:#10B981;">SuperMart Retail Enterprise Intranet</h1>
-     <p>Node: SRV-CENTRAL-01 | IP: 192.168.40.10 | VLAN 40</p>
-     <p>Connected Cashier Terminals: Operational</p>
-   </body>
-   </html>
-   ```
-4. **Verification:** Open Web Browser on `POS-COUNTER-01` and enter `http://supermart.local` or `http://192.168.40.10`. Page renders with green header!
+| From WIFI-LAPTOP | Expected |
+|---|---|
+| Browser `http://www.supermart.local` | page loads (DNS + HTTP permitted) |
+| `ping 192.168.11.1` | replies (gateway) |
+| `ping 198.51.100.10` | replies (internet via ASA) |
+| `ping 192.168.10.11` (POS) | **fails** (denied by ACL) |
+| `ping 192.168.11.230` (server, ICMP) | **fails** (only DNS/HTTP/HTTPS are allowed to the server) |
 
----
+## 7. INTERNET-SRV (simulated internet site)
+IP `198.51.100.10`, mask `255.255.255.0`, gateway `198.51.100.1`. Services → HTTP **On** (edit `index.html` to say "Internet site"). Services → FTP **On** (so the ASA FTP block can be demonstrated).
 
-## 4. Email Server (SMTP & POP3) Configuration
+## 8. Printer sharing — POS-PRINTER
+Config → FastEthernet0 → Static: `192.168.10.5`, `255.255.255.0`, gateway `192.168.10.1`. Every counter in VLAN 10 reaches it without a router hop. Test: POS-PC-01 `ping 192.168.10.5`. (PT models the printer as a network node; print jobs are not simulated.)
 
-1. In `SRV-CENTRAL-01` -> **Services** -> **EMAIL**.
-2. Turn **SMTP Service: ON** (Port 25) and **POP3 Service: ON** (Port 110).
-3. Set **Domain Name:** `supermart.local` -> Click **Set**.
-4. Add User Accounts under User Setup:
-   - User 1: `cashier1` | Password: `PosPassword123` -> Click `+`
-   - User 2: `manager`  | Password: `ManagerPass123` -> Click `+`
-
-### Client Email Configuration on Workstations:
-1. Open `POS-COUNTER-01` -> **Desktop** tab -> Click **Email**.
-   - Your Name: `Counter 01 Cashier`
-   - Email Address: `cashier1@supermart.local`
-   - Incoming Mail Server: `192.168.40.10`
-   - Outgoing Mail Server (SMTP): `192.168.40.10`
-   - Username: `cashier1` | Password: `PosPassword123`
-   - Click **Save**.
-2. Open `ADMIN-PC-01` (Store Manager PC) -> **Desktop** -> **Email**:
-   - Your Name: `Store Manager`
-   - Email Address: `manager@supermart.local`
-   - Incoming & Outgoing: `192.168.40.10`
-   - Username: `manager` | Password: `ManagerPass123`
-   - Click **Save**.
-
-### Email Verification Test:
-- On `POS-COUNTER-01`, click **Compose**, send email to `manager@supermart.local` with Subject: `EOD Sales Settlement - Counter 01`, Body: `Gross sales today: Rs. 48,250.00. Register balanced.` Click **Send**.
-- Status shows `Send Success`.
-- On `ADMIN-PC-01`, click **Receive**. The message appears in inbox!
-
----
-
-## 5. FTP File Sharing Configuration
-
-1. In `SRV-CENTRAL-01` -> **Services** -> **FTP**.
-2. Turn **FTP Service: ON**.
-3. Create user account:
-   - Username: `posadmin`
-   - Password: `PosAdminPass2026`
-   - Permissions: Check `Write`, `Read`, `Delete`, `Rename`, `List`.
-   - Click **Add**.
-4. **Verification:** From `POS-COUNTER-01` Command Prompt:
-   ```cmd
-   ftp 192.168.40.10
-   (Username: posadmin, Password: PosAdminPass2026)
-   ftp> dir
-   ftp> quit
-   ```
-
----
-
-## 6. Network Printer Sharing Configuration
-
-1. In Packet Tracer, place a **Printer-PT** named `POS-PRINTER-01`.
-2. Connect using Copper Straight-Through cable to `POS-ACCESS-SW-2960` port `FastEthernet0/3`.
-3. Click on the Printer -> **Config** tab -> **FastEthernet0**:
-   - Set IP Configuration to **DHCP** (or Static: `192.168.10.12`, Subnet Mask `255.255.255.0`, Gateway `192.168.10.1`).
-4. **Verification:** Cashier PC `POS-COUNTER-01` (`192.168.10.10`) pings `192.168.10.12` with 0ms latency.
+## 9. NMS-PC — SNMP manager
+IP `192.168.11.231 / 255.255.255.240`, gateway `192.168.11.225`.
+Desktop → **MIB Browser** → Advanced: Address `192.168.11.242` (HQ-R1), Read Community `SuperMartRO`, SNMP version v2 → OK. Select `.iso.org.dod.internet.mgmt.mib-2.system` → Operation **Walk** → **GO**: sysDescr, sysUpTime, sysName `HQ-R1` are returned. Repeat for `192.168.11.243` (HQ-R2) and `192.168.11.244` (core switch).
